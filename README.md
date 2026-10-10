@@ -32,13 +32,12 @@
                     ├─ FP_CRC_ERR → 计数
                     └─ FP_LEN_ERR → 计数 + 重同步
                               ▼
-                          LEDQueue ──► LED 驱动任务 (osPriorityHigh)
+                          LEDQueue ──► LEDTask (osPriorityNormal)
 ```
 
-> **关于任务命名**：`freertos.c` 的线程注册存在函数名与文件名的交叉 ——
-> 定义在 `LEDTask.c` 的 `StartKeyTask()`（实际消费 LEDQueue）被注册为 `KeyTask`（High），
-> 定义在 `KeyTask.c` 的 `startLEDTask()`（实际做按键扫描）被注册为 `LEDTask`（Normal）。
-> 上图按**实际职责**绘制。这是已知技术债，见下方「已知待改进」。
+> 任务/优先级对应：`CommandTask`(High1) 做帧解析，`KeyTask`(High) 固定 5ms 轮询按键，
+> `LEDTask`(Normal) 阻塞在 LEDQueue 上。三个入口函数名与文件名、`freertos.ioc`
+> 中的线程配置一一对应。
 
 ## 通信协议
 
@@ -97,8 +96,11 @@ STAT ok=<n> crc=<n> len=<n> ovr=<n> resync=<n> err=<n> seq=<n>
   与 `configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY = 5` 对齐
   （数值再小一级就不可在中断中调用 FreeRTOS API）
 - 资源预算：FreeRTOS 堆 3072 B（heap_4）、三个任务各 512 B 栈（`128 * 4`）、
-  环形缓冲 512 B、DMA 缓冲 128 B —— 都逐一核算过；应用层的 `pvPortMalloc`
-  与队列操作返回值均有判空/判错处理
+  环形缓冲 512 B、DMA 缓冲 128 B —— 都逐一核算过
+- 动态分配全部判空：应用层 `pvPortMalloc` 与队列操作检查返回值；
+  `MX_FREERTOS_Init()` 里 7 个内核对象（2 信号量 + 2 队列 + 3 线程）创建后统一校验，
+  失败时把对象名留在全局变量（调试器可直接读）并用板载灯持续闪烁 ——
+  堆不足时 `osXxxNew` 返回 `NULL`、任务会静默地不存在，这是最难现场定位的一类故障
 - 补全 `HAL_UART_ErrorCallback`：清 ORE 标志并重新武装接收，
   避免溢出标志未清导致 RXNE 不再产生中断、接收永久停摆
 
@@ -116,12 +118,6 @@ openocd -f interface/stlink.cfg -f target/stm32f1x.cfg \
 - [ ] 串口波特率 9600 → 115200（当前上报一次统计约需 130ms）
 - [ ] 统计上报改用 DMA/中断发送，避免阻塞任务
 - [ ] 开启 `configCHECK_FOR_STACK_OVERFLOW` 并实现 hook
-- [ ] `MX_FREERTOS_Init()` 里 `osThreadNew` / `osMessageQueueNew` / `osSemaphoreNew`
-      的返回值未判空：堆只有 3 KB，创建失败会返回 `NULL`、任务静默不存在。
-      计划加创建断言 + 失败时闪灯提示，便于现场定位
-- [ ] 整理任务入口函数命名（`KeyTask.c` / `LEDTask.c` 内函数名与注册的任务名交叉）
-- [ ] `freertos.ioc` 中的任务优先级与栈大小仍是旧值，与手改过的 `freertos.c`
-      不一致 —— 下次用 CubeMX 重新生成代码会被覆盖回去，需要同步
 - [ ] LED 消息改为队列值传递，去掉对 `pvPortMalloc` 的依赖
 - [ ] 为 `frame_parser` 与 `key_fsm` 补 PC 端单元测试
 - [ ] 下一步：CAN 电机控制（bxCAN + TJA1050 双节点实验 → 对接 DJI 电调）
