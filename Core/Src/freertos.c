@@ -39,6 +39,23 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
+/* 内核对象创建失败的兜底检查：
+ * 堆只有 3072 B，osThreadNew / osMessageQueueNew / osSemaphoreNew 在堆不足时
+ * 返回 NULL，任务会静默地不存在、现场无法定位。
+ * 失败时把对象名留在全局变量里（调试器可直接查看），并用板载灯持续闪烁提示。 */
+static const char * volatile g_failed_object;
+
+static void mx_assert_created(const void *handle, const char *name)
+{
+  if (handle == NULL) {
+    g_failed_object = name;
+    for (;;) {
+      HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+      for (volatile uint32_t i = 0u; i < 200000u; i++) { }
+    }
+  }
+}
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -158,7 +175,14 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
-  /* add events, ... */
+  /* 统一校验所有内核对象是否创建成功（放在 USER CODE 区，CubeMX 重新生成不会丢） */
+  mx_assert_created(KeySemaphoreHandle,   "KeySemaphore");
+  mx_assert_created(uartSemHandle,        "uartSem");
+  mx_assert_created(LEDQueueHandle,       "LEDQueue");
+  mx_assert_created(CommandQueueHandle,   "CommandQueue");
+  mx_assert_created(KeyTaskHandle,        "KeyTask");
+  mx_assert_created(LEDTaskHandle,        "LEDTask");
+  mx_assert_created(CommandTaskHandle,    "CommandTask");
   /* USER CODE END RTOS_EVENTS */
 
 }
