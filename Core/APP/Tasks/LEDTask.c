@@ -1,10 +1,15 @@
+/* LEDTask.c —— LED 驱动任务：消费 LEDQueue，按颜色/状态写 GPIO
+ *
+ * 入口函数 startLEDTask 与文件名、freertos.ioc 中的 LEDTask 线程三者一致
+ * （此前 KeyTask.c / LEDTask.c 两个文件的入口函数名互换过，已修正）。
+ */
 #include "cmsis_os2.h"
 #include "main.h"
 #include "FreeRTOS.h"
 #include "Types/LEDType.h"
 
 
-void StartKeyTask(void *argument) {
+void startLEDTask(void *argument) {
     for (;;) {
         led_t *message ;
         osMessageQueueGet(LEDQueueHandle, &message, 0, osWaitForever);

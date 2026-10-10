@@ -1,7 +1,7 @@
 /* KeyTask.c —— 按键任务：读引脚 → 消抖 → 状态机 → 事件分发
 *
- * 说明：本文件里的 startLEDTask 是历史遗留名（它其实做按键扫描，
- * 且被 freertos.c 注册成了 "LEDTask" 线程）。M1 先不动命名，避免一次改太多。
+ * 入口函数 StartKeyTask 与文件名、freertos.ioc 中的 KeyTask 线程三者一致 ——
+ * 此前 KeyTask.c 与 LEDTask.c 的入口函数名互换过（本文件里曾叫 startLEDTask），已修正。
  *
  * 关于 EXTI/KeySemaphore：本实现用固定 5 ms 轮询作为时间基准，
  * 不再需要 EXTI 唤醒（信号量停在 1 无副作用）。
@@ -45,7 +45,7 @@ static void key_event_dispatch(key_event_t ev, led_state_t *led_on)
     }
 }
 
-void startLEDTask(void *argument)
+void StartKeyTask(void *argument)
 {
     led_state_t led_on = LED_OFF;
 
