@@ -27,6 +27,7 @@ void startLEDTask(void *argument) {
                 /* PC13 板载灯是"低电平点亮"，所以高低电平要反过来 */
                 HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,
                                   (message->state == LED_ON) ? GPIO_PIN_RESET : GPIO_PIN_SET);
+                break;                 /* 板载灯处理完不要穿透到 default */
             default:
                 break;
         }
